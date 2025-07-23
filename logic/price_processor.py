@@ -51,14 +51,24 @@ class PriceProcessor:
         stock_raw = self.gsheet_client.get_data(stock_loc.sheet_id, f"{stock_loc.sheet_name}!{stock_loc.cell}")[0][0]
         return float(min_price_raw), float(max_price_raw), int(stock_raw)
 
-    def _analyze_offers(self, product_id: int, min_price: float) -> Dict[str, any]:
+    def _analyze_offers(self, product_id: int, min_price: float, my_seller_name: Optional[str]) -> Dict[str, any]:
+        """
+        Analyzes product offers to find the valid competitor, top sellers for logging,
+        and sellers with prices below our minimum.
+        It explicitly excludes `my_seller_name` from competitor consideration.
+        """
         offers = self.gamivo_client.get_product_offers(product_id)
         sorted_offers = sorted(offers, key=lambda o: o.retail_price)
         analysis = {"valid_competitor": None, "top_sellers_for_log": sorted_offers[:4], "sellers_below_min": []}
+
+        # Find the first valid competitor
         for offer in sorted_offers:
-            if offer.seller_name not in self.blacklist:
+            # A competitor must not be me and must not be in the blacklist
+            if offer.seller_name != my_seller_name and offer.seller_name not in self.blacklist:
                 analysis["valid_competitor"] = offer
                 break
+
+        # Find all sellers whose price is lower than our min_price
         for offer in sorted_offers:
             if offer.retail_price < min_price:
                 analysis["sellers_below_min"].append(offer)
@@ -89,9 +99,12 @@ class PriceProcessor:
             if not offer_id: raise Exception(f"Offer ID not found for product {payload.product_compare_id}")
 
             my_offer_data = self.gamivo_client.retrieve_my_offer(offer_id)
+            my_seller_name = my_offer_data.get('seller_name')  # Get my seller name to avoid competing with myself
             my_current_price = self.gamivo_client.calculate_seller_price(offer_id,
                 my_offer_data['retail_price']).seller_price
-            offer_analysis = self._analyze_offers(payload.product_compare_id, min_price)
+
+            # Pass my seller name to the analysis function to exclude it from competitors
+            offer_analysis = self._analyze_offers(payload.product_compare_id, min_price, my_seller_name)
             valid_competitor = offer_analysis["valid_competitor"]
 
             log_msg, final_price = "", max_price
@@ -104,16 +117,26 @@ class PriceProcessor:
                 final_price = self._calculate_final_price(my_current_price, competitor_price, payload.min_change_price,
                     payload.max_change_price, payload.rounding_precision, min_price, max_price)
 
+                # Build the detailed log string
                 log_lines = [
                     f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Giá đã cập nhật thành công; Price = {final_price:.2f}; Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}",
                     "----Top Sellers----"]
+
+                seller_prefixes = ["1st", "2nd", "3rd", "4th"]
                 for i, offer in enumerate(offer_analysis["top_sellers_for_log"]):
+                    # Calculate seller price for each top seller to ensure consistent logging
+                    calculated_price = self.gamivo_client.calculate_seller_price(offer_id,
+                        offer.retail_price).seller_price
                     log_lines.append(
-                        f" - {['1st', '2nd', '3rd', '4th'][i]} Seller: {offer.seller_name} - Price: {offer.retail_price:.2f}")
+                        f" - {seller_prefixes[i]} Seller: {offer.seller_name} - Price: {calculated_price:.2f}")
+
                 if offer_analysis["sellers_below_min"]:
                     log_lines.append("----Seller price lower than min-----")
                     for offer in offer_analysis["sellers_below_min"]:
-                        log_lines.append(f"{offer.seller_name} - Price: {offer.retail_price:.2f}")
+                        # Calculate seller price for each seller below min for consistency
+                        calculated_price = self.gamivo_client.calculate_seller_price(offer_id,
+                            offer.retail_price).seller_price
+                        log_lines.append(f"{offer.seller_name} - Price: {calculated_price:.2f}")
                 log_msg = "\n".join(log_lines)
 
             status, response = self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock)
