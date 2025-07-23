@@ -9,7 +9,7 @@ class Config:
         self.google_key_path = os.getenv('GOOGLE_KEY_PATH')
         self.main_sheet_id = os.getenv('MAIN_SHEET_ID')
         self.main_sheet_name = os.getenv('MAIN_SHEET_NAME')
-
+        self.start_row = int(os.getenv('START_ROW', 2))
         # Gamivo
         self.gamivo_api_key = os.getenv('GAMIVO_API_KEY')
 
