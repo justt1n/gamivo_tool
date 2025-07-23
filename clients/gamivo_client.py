@@ -3,14 +3,13 @@
 A dedicated client for interacting with the Gamivo API.
 This class encapsulates all API calls, data transformation, and local DB lookups.
 """
+import requests
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 
-import requests
-
 # Import from our new structured files
 from db.sqlite_client import SQLiteClient
-from models.gamivo_model import UpdateOfferPayload, OfferDetails, CalculatedPrice
+from models.gamivo_models import UpdateOfferPayload, OfferDetails, CalculatedPrice
 
 
 class GamivoAPIError(Exception):
@@ -47,17 +46,6 @@ class GamivoClient:
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Any:
         """
         A helper method to make HTTP requests to the Gamivo API.
-
-        Args:
-            method (str): HTTP method (GET, POST, PUT, DELETE).
-            endpoint (str): API endpoint path (e.g., '/products/123/offers').
-            **kwargs: Additional arguments for the requests call (e.g., json, params).
-
-        Returns:
-            Any: The JSON response from the API.
-
-        Raises:
-            GamivoAPIError: If the API returns a non-2xx status code.
         """
         url = f"{self.BASE_URL}{endpoint}"
         try:
@@ -75,11 +63,11 @@ class GamivoClient:
     def get_offer_id_by_product_id(self, product_id: int) -> Optional[int]:
         """
         Retrieves the offer ID from the local database using a product ID.
-        This logic is migrated from the old PriceService.
+        This method now assumes the DB connection is managed externally.
         """
         query = "SELECT id FROM product_offers WHERE product_id = ?"
-        with self.db_client as db:
-            result = db.fetch_query(query, (product_id,))
+        # The 'with' statement is removed to prevent open/close on each call.
+        result = self.db_client.fetch_query(query, (product_id,))
 
         if result:
             return result[0][0]
@@ -113,9 +101,7 @@ class GamivoClient:
     def update_offer(self, offer_id: int, original_offer_data: dict, new_price: float, stock: int) -> Tuple[int, dict]:
         """
         Updates an existing offer with a new price and stock.
-        This method combines logic from `convert_to_new_offer` and `put_edit_offer_by_id`.
         """
-        # 1. Prepare the payload data (logic from `convert_to_new_offer`)
         payload_data = {
             "wholesale_mode": original_offer_data.get('wholesale_mode', 0) or 0,
             "seller_price": new_price,
@@ -125,19 +111,15 @@ class GamivoClient:
             "is_preorder": original_offer_data.get('is_preorder', False)
         }
 
-        # 2. Validate the payload with Pydantic
         try:
             validated_payload = UpdateOfferPayload(**payload_data)
         except Exception as e:
             logging.error(f"Payload validation failed for offer {offer_id}: {e}")
             raise GamivoAPIError(f"Payload validation failed: {e}")
 
-        # 3. Send the request
         endpoint = f"/offers/{offer_id}"
-        # Use .model_dump() to get a dict, excluding fields that were not set (are None)
         json_payload = validated_payload.model_dump(exclude_none=True)
 
-        # The old API client returns status_code and json, we will replicate that
         url = f"{self.BASE_URL}{endpoint}"
         response = requests.put(url, headers=self.headers, json=json_payload)
         return response.status_code, response.json()
