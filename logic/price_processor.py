@@ -3,6 +3,7 @@
 The core business logic orchestrator for the price update process.
 """
 import logging
+import random
 from datetime import datetime
 from time import sleep, monotonic
 from typing import List, Tuple, Optional, Dict
@@ -75,7 +76,8 @@ class PriceProcessor:
         The state of the current price is irrelevant; only the target matters.
         """
         # 1. Determine the ideal price to undercut the competitor.
-        ideal_price = target_price - min_change
+        random_price = random.uniform(min_price, max_price)
+        ideal_price = target_price - random_price
 
         # 2. Ensure the price is not lower than our minimum allowed price.
         price_after_min_check = max(min_price, ideal_price)
