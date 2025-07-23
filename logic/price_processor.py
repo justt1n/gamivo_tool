@@ -138,7 +138,7 @@ class PriceProcessor:
                 self._add_log(payload.sheet_row_num, log_msg, 'C')
             else:
                 log_msg = f"Failed to process: {response}"
-                self._add_log(payload.sheet_row_num, log_msg, 'C')
+                self._add_log(payload.sheet_row_num, log_msg, 'E')
                 raise GamivoAPIError(f"Update failed: {response.get('message', 'Unknown')}", status)
         except (GamivoAPIError, Exception) as e:
             logging.error(f"Error processing '{payload.product_name}' on row {payload.sheet_row_num}: {e}")
