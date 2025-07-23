@@ -118,11 +118,15 @@ class PriceProcessor:
                     min_price,
                     max_price
                 )
-
+            status, response = self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock)
+            if status == 200:
                 log_lines = [
                     f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Giá đã cập nhật thành công; Price = {final_price:.2f}; Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}",
                     "----Top Sellers----"]
                 seller_prefixes = ["1st", "2nd", "3rd", "4th"]
+                log_offers = self.gamivo_client.get_product_offers(payload.product_compare_id)
+                log_sorted_offers = sorted(log_offers, key=lambda o: o.retail_price)
+                offer_analysis["top_sellers_for_log"] = log_sorted_offers[:4]
                 for i, offer in enumerate(offer_analysis["top_sellers_for_log"]):
                     calculated_price = self.gamivo_client.calculate_seller_price(offer_id,
                                                                                  offer.retail_price).seller_price
@@ -130,12 +134,11 @@ class PriceProcessor:
                         f" - {seller_prefixes[i]} Seller: {offer.seller_name} - Price: {calculated_price:.2f}")
 
                 log_msg = "\n".join(log_lines)
-
-            status, response = self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock)
-            if status == 200:
                 logging.info(f"Successfully processed row {payload.sheet_row_num}. Log details:\n{log_msg}")
                 self._add_log(payload.sheet_row_num, log_msg, 'C')
             else:
+                log_msg = f"Failed to process: {response}"
+                self._add_log(payload.sheet_row_num, log_msg, 'C')
                 raise GamivoAPIError(f"Update failed: {response.get('message', 'Unknown')}", status)
         except (GamivoAPIError, Exception) as e:
             logging.error(f"Error processing '{payload.product_name}' on row {payload.sheet_row_num}: {e}")
