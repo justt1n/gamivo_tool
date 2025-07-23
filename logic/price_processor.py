@@ -130,8 +130,9 @@ class PriceProcessor:
                 for i, offer in enumerate(offer_analysis["top_sellers_for_log"]):
                     calculated_price = self.gamivo_client.calculate_seller_price(offer_id,
                                                                                  offer.retail_price).seller_price
+                    retail_price = offer.retail_price
                     log_lines.append(
-                        f" - {seller_prefixes[i]} Seller: {offer.seller_name} - Price: {calculated_price:.2f}")
+                        f" - {seller_prefixes[i]} Seller: {offer.seller_name} - Price: {retail_price} ({calculated_price:.2f})")
 
                 log_msg = "\n".join(log_lines)
                 logging.info(f"Successfully processed row {payload.sheet_row_num}. Log details:\n{log_msg}")
