@@ -190,6 +190,7 @@ class PriceProcessor:
                     end_time = monotonic()
                     duration = end_time - start_time
                     logging.info(f"Finished '{payload.product_name}' in {duration:.2f} seconds.")
+                    sleep(self.config.retries_time_sleep)
 
             except Exception as e:
                 logging.critical(f"A critical error occurred in the main loop: {e}", exc_info=True)
