@@ -146,6 +146,8 @@ class PriceProcessor:
         except (GamivoAPIError, Exception) as e:
             logging.error(f"Error processing '{payload.product_name}' on row {payload.sheet_row_num}: {e}")
             self._add_log(payload.sheet_row_num, f"Error: {e}", 'E')
+            logging.error(f"Retrying in {self.config.retries_time_sleep} seconds...")
+            sleep(int(self.config.retries_time_sleep))
         finally:
             self._add_log(payload.sheet_row_num, datetime.now().strftime('%d/%m/%Y %H:%M:%S'), 'D')
 
