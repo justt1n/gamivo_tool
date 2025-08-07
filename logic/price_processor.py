@@ -69,14 +69,14 @@ class PriceProcessor:
                 break
         return analysis
 
-    def _calculate_final_price(self, target_price: float, min_change: float, rounding: int, min_price: float,
+    def _calculate_final_price(self, target_price: float, min_change: float, max_change: float, rounding: int, min_price: float,
                                max_price: float) -> float:
         """
         Calculates the final price with a simplified and direct logic.
         The state of the current price is irrelevant; only the target matters.
         """
         # 1. Determine the ideal price to undercut the competitor.
-        random_price = random.uniform(min_price, max_price)
+        random_price = random.uniform(min_change, max_change)
         ideal_price = target_price - random_price
 
         # 2. Ensure the price is not lower than our minimum allowed price.
@@ -116,6 +116,7 @@ class PriceProcessor:
                 final_price = self._calculate_final_price(
                     competitor_price,
                     payload.min_change_price,
+                    payload.max_change_price,
                     payload.rounding_precision,
                     min_price,
                     max_price
