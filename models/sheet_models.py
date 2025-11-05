@@ -37,14 +37,22 @@ class Payload(BaseModel):
     max_price_location: SheetLocation
     stock_location: SheetLocation
     blacklist_location: SheetLocation
+    mode: Optional[str] = Field(None, alias='27') #AB
 
     # Fields not from the sheet, but useful for context
-    price: Optional[float] = Field(None, alias='21')
+    price: Optional[str] = Field(None, alias='21')
     seller: Optional[str] = Field(None, alias='22')
+    current_price: Optional[float] = Field(None, alias='28')
+    target_price: Optional[float] = Field(None, alias='29')
 
     class Config:
         """Allow population by field name (alias)."""
         populate_by_name = True
+
+
+    @property
+    def get_mode(self):
+        return int(self.mode) if self.mode is not None else 1
 
     @property
     def is_enabled(self) -> bool:
@@ -65,7 +73,7 @@ class Payload(BaseModel):
             return None  # Skip empty rows
 
         # Pad the row with None values to prevent IndexError
-        padded_row = (row_data + [None] * 23)[:23]
+        padded_row = (row_data + [None] * 30)[:30]
 
         try:
             # Map list indices to a dictionary for Pydantic

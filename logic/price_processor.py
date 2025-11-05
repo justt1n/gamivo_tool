@@ -69,7 +69,8 @@ class PriceProcessor:
                 break
         return analysis
 
-    def _calculate_final_price(self, target_price: float, min_change: float, max_change: float, rounding: int, min_price: float,
+    def _calculate_final_price(self, target_price: float, min_change: float, max_change: float, rounding: int,
+                               min_price: float,
                                max_price: float) -> float:
         """
         Calculates the final price with a simplified and direct logic.
@@ -88,26 +89,90 @@ class PriceProcessor:
         # 4. Return the rounded final price.
         return round(final_price, rounding)
 
+    # def _process_single_payload(self, payload: Payload):
+    #     try:
+    #         min_price, max_price, stock = self._get_price_boundaries(payload)
+    #         offer_id = self.gamivo_client.get_offer_id_by_product_id(payload.product_compare_id)
+    #         if not offer_id: raise Exception(f"Offer ID not found for product {payload.product_compare_id}")
+    #
+    #         my_offer_data = self.gamivo_client.retrieve_my_offer(offer_id)
+    #         my_seller_name = my_offer_data.get('seller_name')
+    #
+    #         offer_analysis = self._analyze_offers(payload.product_compare_id, my_seller_name)
+    #         valid_competitor = offer_analysis["valid_competitor"]
+    #
+    #         log_msg = ""
+    #         final_price = max_price
+    #
+    #         if valid_competitor is None:
+    #             # If there's no one to compete with, set price to max
+    #             final_price = max_price
+    #             log_msg = f"No valid competitor found. Setting price to MAX: {final_price:.2f}"
+    #         else:
+    #             competitor_seller = valid_competitor.seller_name
+    #             competitor_price_raw = valid_competitor.retail_price
+    #             competitor_price = self.gamivo_client.calculate_seller_price(offer_id,
+    #                                                                          competitor_price_raw).seller_price
+    #
+    #             final_price = self._calculate_final_price(
+    #                 competitor_price,
+    #                 payload.min_change_price,
+    #                 payload.max_change_price,
+    #                 payload.rounding_precision,
+    #                 min_price,
+    #                 max_price
+    #             )
+    #         status, response = self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock)
+    #         if status == 200:
+    #             log_lines = [
+    #                 f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Giá đã cập nhật thành công; Price = {final_price:.2f}; Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}",
+    #                 "----Top Sellers----"]
+    #             seller_prefixes = ["1st", "2nd", "3rd", "4th"]
+    #             log_offers = self.gamivo_client.get_product_offers(payload.product_compare_id)
+    #             log_sorted_offers = sorted(log_offers, key=lambda o: o.retail_price)
+    #             offer_analysis["top_sellers_for_log"] = log_sorted_offers[:4]
+    #             for i, offer in enumerate(offer_analysis["top_sellers_for_log"]):
+    #                 calculated_price = self.gamivo_client.calculate_seller_price(offer_id,
+    #                                                                              offer.retail_price).seller_price
+    #                 retail_price = offer.retail_price
+    #                 log_lines.append(
+    #                     f" - {seller_prefixes[i]} Seller: {offer.seller_name} - Price: {retail_price} ({calculated_price:.2f})")
+    #
+    #             log_msg = "\n".join(log_lines)
+    #             logging.info(f"Successfully processed row {payload.sheet_row_num}. Log details:\n{log_msg}")
+    #             self._add_log(payload.sheet_row_num, log_msg, 'C')
+    #         else:
+    #             log_msg = f"Failed to process: {response}"
+    #             self._add_log(payload.sheet_row_num, log_msg, 'E')
+    #             raise GamivoAPIError(f"Update failed: {response.get('message', 'Unknown')}", status)
+    #     except (GamivoAPIError, Exception) as e:
+    #         logging.error(f"Error processing '{payload.product_name}' on row {payload.sheet_row_num}: {e}")
+    #         self._add_log(payload.sheet_row_num, f"Error: {e}", 'E')
+    #         logging.error(f"Retrying in {self.config.retries_time_sleep} seconds...")
+    #         sleep(int(self.config.retries_time_sleep))
+    #     finally:
+    #         self._add_log(payload.sheet_row_num, datetime.now().strftime('%d/%m/%Y %H:%M:%S'), 'D')
+
     def _process_single_payload(self, payload: Payload):
         try:
+            # --- PHASE 1: SETUP & CALCULATE (Luôn tính toán) ---
             min_price, max_price, stock = self._get_price_boundaries(payload)
             offer_id = self.gamivo_client.get_offer_id_by_product_id(payload.product_compare_id)
-            if not offer_id: raise Exception(f"Offer ID not found for product {payload.product_compare_id}")
+            if not offer_id:
+                raise Exception(f"Offer ID not found for product {payload.product_compare_id}")
 
             my_offer_data = self.gamivo_client.retrieve_my_offer(offer_id)
             my_seller_name = my_offer_data.get('seller_name')
+            my_current_price = my_offer_data.get('seller_price', float('inf'))  # Lấy giá hiện tại
 
             offer_analysis = self._analyze_offers(payload.product_compare_id, my_seller_name)
             valid_competitor = offer_analysis["valid_competitor"]
 
-            log_msg = ""
             final_price = max_price
+            competitor_price = 0.0  # Mặc định
+            competitor_seller = "Không đối thủ"
 
-            if valid_competitor is None:
-                # If there's no one to compete with, set price to max
-                final_price = max_price
-                log_msg = f"No valid competitor found. Setting price to MAX: {final_price:.2f}"
-            else:
+            if valid_competitor:
                 competitor_seller = valid_competitor.seller_name
                 competitor_price_raw = valid_competitor.retail_price
                 competitor_price = self.gamivo_client.calculate_seller_price(offer_id,
@@ -121,29 +186,54 @@ class PriceProcessor:
                     min_price,
                     max_price
                 )
-            status, response = self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock)
-            if status == 200:
-                log_lines = [
-                    f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Giá đã cập nhật thành công; Price = {final_price:.2f}; Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}",
-                    "----Top Sellers----"]
-                seller_prefixes = ["1st", "2nd", "3rd", "4th"]
-                log_offers = self.gamivo_client.get_product_offers(payload.product_compare_id)
-                log_sorted_offers = sorted(log_offers, key=lambda o: o.retail_price)
-                offer_analysis["top_sellers_for_log"] = log_sorted_offers[:4]
-                for i, offer in enumerate(offer_analysis["top_sellers_for_log"]):
-                    calculated_price = self.gamivo_client.calculate_seller_price(offer_id,
-                                                                                 offer.retail_price).seller_price
-                    retail_price = offer.retail_price
-                    log_lines.append(
-                        f" - {seller_prefixes[i]} Seller: {offer.seller_name} - Price: {retail_price} ({calculated_price:.2f})")
 
-                log_msg = "\n".join(log_lines)
-                logging.info(f"Successfully processed row {payload.sheet_row_num}. Log details:\n{log_msg}")
-                self._add_log(payload.sheet_row_num, log_msg, 'C')
+            # --- PHASE 2: DECIDE (Quyết định có update hay không) ---
+            should_update = False
+            log_msg_if_skipped = ""
+
+            if payload.get_mode == 1:
+                # Mode 1: Luôn cập nhật
+                should_update = True
             else:
-                log_msg = f"Failed to process: {response}"
-                self._add_log(payload.sheet_row_num, log_msg, 'E')
-                raise GamivoAPIError(f"Update failed: {response.get('message', 'Unknown')}", status)
+                # Mode 2 (hoặc khác): Chỉ cập nhật nếu giá hiện tại của tôi > giá mục tiêu
+                if my_current_price > final_price:
+                    should_update = True
+                else:
+                    # Không cập nhật, chuẩn bị log
+                    log_lines = [
+                        f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Không cập nhật",
+                        f"Giá hiện tại: {my_current_price:.2f} | Giá mục tiêu: {final_price:.2f}",
+                        f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}"
+                    ]
+                    log_lines.extend(self._get_top_sellers_log(payload.product_compare_id, offer_id))
+                    log_msg_if_skipped = "\n".join(log_lines)
+
+            # --- PHASE 3: ACTION (Chỉ 1 nơi gọi API, 1 nơi xử lý log) ---
+            if should_update:
+                status, response = self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock)
+
+                if status == 200:
+                    # Log thành công
+                    log_lines = [
+                        f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Giá đã cập nhật thành công; Price = {final_price:.2f}",
+                        f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}"
+                    ]
+                    log_lines.extend(self._get_top_sellers_log(payload.product_compare_id, offer_id))
+                    log_msg = "\n".join(log_lines)
+
+                    logging.info(f"Successfully processed row {payload.sheet_row_num}. Log details:\n{log_msg}")
+                    self._add_log(payload.sheet_row_num, log_msg, 'C')
+                else:
+                    # Log thất bại (API)
+                    log_msg = f"Failed to process: {response}"
+                    self._add_log(payload.sheet_row_num, log_msg, 'E')
+                    raise GamivoAPIError(f"Update failed: {response.get('message', 'Unknown')}", status)
+            else:
+                # Log (Không cập nhật)
+                logging.info(
+                    f"Skipping update for row {payload.sheet_row_num} (Mode 2). Log details:\n{log_msg_if_skipped}")
+                self._add_log(payload.sheet_row_num, log_msg_if_skipped, 'C')
+
         except (GamivoAPIError, Exception) as e:
             logging.error(f"Error processing '{payload.product_name}' on row {payload.sheet_row_num}: {e}")
             self._add_log(payload.sheet_row_num, f"Error: {e}", 'E')
@@ -151,6 +241,28 @@ class PriceProcessor:
             sleep(int(self.config.retries_time_sleep))
         finally:
             self._add_log(payload.sheet_row_num, datetime.now().strftime('%d/%m/%Y %H:%M:%S'), 'D')
+
+    def _get_top_sellers_log(self, product_id: int, offer_id: int) -> List[str]:
+        """
+        Helper method to fetch and format the top 4 sellers for logging.
+        This is re-fetched after an update to get the latest state.
+        """
+        log_lines = ["----Top Sellers----"]
+        seller_prefixes = ["1st", "2nd", "3rd", "4th"]
+        try:
+            log_offers = self.gamivo_client.get_product_offers(product_id)
+            log_sorted_offers = sorted(log_offers, key=lambda o: o.retail_price)[:4]
+
+            for i, offer in enumerate(log_sorted_offers):
+                calculated_price = self.gamivo_client.calculate_seller_price(offer_id,
+                                                                             offer.retail_price).seller_price
+                retail_price = offer.retail_price
+                log_lines.append(
+                    f" - {seller_prefixes[i]} Seller: {offer.seller_name} - Price: {retail_price} ({calculated_price:.2f})")
+        except Exception as e:
+            logging.warning(f"Could not generate top sellers log for product {product_id}: {e}")
+            log_lines.append(" - Error fetching top sellers.")
+        return log_lines
 
     def _add_log(self, row_num: int, message: str, column: str):
         range_name = f"{self.config.main_sheet_name}!{column}{row_num}"
@@ -172,7 +284,7 @@ class PriceProcessor:
             logging.info("--- Starting new processing cycle ---")
             try:
                 self.gamivo_client.db_client.create_connection()
-                range_to_fetch = f"{self.config.main_sheet_name}!A{self.config.start_row}:W"
+                range_to_fetch = f"{self.config.main_sheet_name}!A{self.config.start_row}:AC"
                 sheet_data = self.gsheet_client.get_data(self.config.main_sheet_id, range_to_fetch)
 
                 payloads = [Payload.from_row(row_data, self.config.start_row + i) for i, row_data in
