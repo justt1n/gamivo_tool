@@ -1,67 +1,43 @@
-import logging
 import sqlite3
-from sqlite3 import Error
-from typing import List, Any, Optional
+import logging
+from typing import Optional, List, Tuple, Any
 
 
 class SQLiteClient:
-    """A wrapper for SQLite database connections providing basic functionalities."""
 
-    def __init__(self, db_file: str):
+    def __init__(self, db_path: str):
+        if not db_path:
+            raise ValueError("Đường dẫn DB không được để trống.")
+        self.db_path = db_path
+        logging.info(f"SQLiteClient khởi tạo cho CSDL tại: {self.db_path}")
+
+    def fetch_query(self, query: str, params: Tuple = ()) -> List[Tuple]:
         """
-        Initializes the SQLiteDB object.
-
-        Args:
-            db_file (str): The path to the SQLite database file.
+        Thực thi một truy vấn SELECT một cách an toàn (thread-safe).
+        Mở, truy vấn, và đóng kết nối trong cùng một hàm.
         """
-        self.db_file = db_file
-        self.conn: Optional[sqlite3.Connection] = None
-
-    def __enter__(self):
-        """Enter the runtime context related to this object."""
-        self.create_connection()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit the runtime context related to this object."""
-        self.close_connection()
-
-    def create_connection(self):
-        """Creates a database connection to the SQLite database."""
-        if self.conn:
-            return
+        conn: Optional[sqlite3.Connection] = None
         try:
-            self.conn = sqlite3.connect(self.db_file)
-            logging.info(f"SQLite version {sqlite3.version} connected successfully to {self.db_file}")
-        except Error as e:
-            logging.error(f"Error connecting to database {self.db_file}: {e}")
+            # 1. Tạo kết nối (chỉ tồn tại trong hàm này)
+            conn = sqlite3.connect(self.db_path)
+            cur = conn.cursor()
+
+            # 2. Thực thi
+            cur.execute(query, params)
+
+            # 3. Lấy kết quả
+            results = cur.fetchall()
+            return results
+        except sqlite3.Error as e:
+            # Lỗi này sẽ được bắt bởi asyncio.to_thread và ném ra ngoài
+            logging.error(f"Lỗi SQLite khi thực thi '{query}': {e}")
+            # Trả về list rỗng hoặc ném lỗi tùy logic của bạn
+            # Ở đây chúng ta ném lỗi để hàm gọi (get_offer_id_by_product_id) biết
             raise
+        finally:
+            # 4. Đóng kết nối (luôn luôn)
+            if conn:
+                conn.close()
 
-    def close_connection(self):
-        """Closes the database connection."""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-            logging.info(f"SQLite connection to {self.db_file} closed.")
-
-    def fetch_query(self, query: str, params: tuple = ()) -> List[Any]:
-        """
-        Executes a SELECT query and returns the fetched results.
-
-        Args:
-            query (str): The SQL query to execute.
-            params (tuple): Optional parameters to bind to the query.
-
-        Returns:
-            List[Any]: A list of rows fetched from the database.
-        """
-        if not self.conn:
-            self.create_connection()
-
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(query, params)
-            return cursor.fetchall()
-        except Error as e:
-            logging.error(f"Failed to fetch query '{query}': {e}")
-            return []
+    # Các hàm create_connection và close_connection không còn cần thiết
+    # vì mỗi hàm fetch sẽ tự quản lý kết nối của nó.

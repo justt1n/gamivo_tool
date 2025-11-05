@@ -19,3 +19,4 @@ class Config:
         self.retries_time = int(os.getenv('RETRIES_TIME', 3))
         self.retries_time_sleep = int(os.getenv('RETRIES_TIME_SLEEP', 30))
         self.loop_delay_seconds = int(os.getenv('LOOP_DELAY_SECONDS', 300))
+        self.max_workers = int(os.getenv('WORKERS', 1))
