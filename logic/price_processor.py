@@ -202,7 +202,7 @@ class PriceProcessor:
                     # Không cập nhật, chuẩn bị log
                     log_lines = [
                         f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Không cập nhật",
-                        f"Giá hiện tại: {my_current_price:.2f} | Giá mục tiêu: {final_price:.2f}",
+                        f"Giá hiện tại: {my_current_price:.2f} | Giá mục tiêu: {competitor_price:.2f}",
                         f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}"
                     ]
                     log_lines.extend(self._get_top_sellers_log(payload.product_compare_id, offer_id))
