@@ -89,7 +89,6 @@ class GamivoClient:
         """
         A helper method to make ASYNCHRONOUS HTTP requests to the Gamivo API with retry logic.
         """
-        await asyncio.sleep(random.uniform(0.1, 0.5))
         url = endpoint  # Đã cấu hình base_url trong AsyncClient
 
         try:
