@@ -3,9 +3,10 @@
 A dedicated client for interacting with the Gamivo API.
 This class encapsulates all API calls, data transformation, and local DB lookups.
 """
-import requests
 import logging
 from typing import List, Dict, Any, Optional, Tuple
+
+import requests
 
 # Import from our new structured files
 from db.sqlite_client import SQLiteClient
@@ -61,17 +62,12 @@ class GamivoClient:
             raise GamivoAPIError(f"Request failed: {e}") from e
 
     def get_offer_id_by_product_id(self, product_id: int) -> Optional[int]:
-        """
-        Retrieves the offer ID from the local database using a product ID.
-        This method now assumes the DB connection is managed externally.
-        """
-        query = "SELECT id FROM product_offers WHERE product_id = ?"
-        # The 'with' statement is removed to prevent open/close on each call.
-        result = self.db_client.fetch_query(query, (product_id,))
+        offer_id = self.db_client.product_offer_map.get(product_id)
 
-        if result:
-            return result[0][0]
-        logging.warning(f"No offer ID found in local DB for product_id: {product_id}")
+        if offer_id is not None:
+            return offer_id
+
+        logging.warning(f"No offer ID found in cache for product_id: {product_id}")
         return None
 
     def get_product_offers(self, product_id: int) -> List[OfferDetails]:
