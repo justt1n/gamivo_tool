@@ -1,38 +1,42 @@
+# main.py
 import logging
 import sys
+import asyncio  # Import asyncio
 
 from logic.price_processor import PriceProcessor
 from utils.config import Config
 
 
-def main():
+async def main():
     """
     Initializes the application and starts the main processing service.
     """
-    # Configure logging to show timestamp, level, and message
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
-        stream=sys.stdout  # Log to standard output
+        stream=sys.stdout
     )
 
     logging.info("Application starting up...")
 
+    processor = None
     try:
-        # Load configuration from .env file
         config = Config()
-
-        # Initialize the main processor with the loaded configuration
         processor = PriceProcessor(config)
 
-        # Start the infinite processing loop
-        processor.run()
+        # Chạy vòng lặp bất đồng bộ
+        await processor.run()
 
     except Exception as e:
         logging.critical(f"Failed to initialize or run the application: {e}", exc_info=True)
-        # In a real-world scenario, you might want to send an alert here.
-        sys.exit(1)  # Exit with an error code
+        sys.exit(1)
+    finally:
+        if processor and processor.gamivo_client:
+            logging.info("Shutting down HTTP client...")
+            await processor.gamivo_client.__aexit__(None, None, None)
+            logging.info("HTTP client shut down.")
 
 
 if __name__ == "__main__":
-    main()
+    # Sử dụng asyncio.run() để khởi chạy hàm main bất đồng bộ
+    asyncio.run(main())

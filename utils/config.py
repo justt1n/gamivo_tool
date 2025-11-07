@@ -17,5 +17,6 @@ class Config:
         self.db_path = os.getenv('DB_PATH', 'storage/product_offers.db')
         # App Logic
         self.retries_time = int(os.getenv('RETRIES_TIME', 3))
-        self.retries_time_sleep = int(os.getenv('RETRIES_TIME_SLEEP', 30))
+        # self.retries_time_sleep = int(os.getenv('RETRIES_TIME_SLEEP', 30))
         self.loop_delay_seconds = int(os.getenv('LOOP_DELAY_SECONDS', 300))
+        self.workers = int(os.getenv('WORKERS', 1))

@@ -20,3 +20,12 @@ class GoogleSheetsClient:
         self.service.spreadsheets().values().batchUpdate(
             spreadsheetId=spreadsheet_id, body=body
         ).execute()
+
+    def batch_get(self, spreadsheet_id, ranges):
+        """
+        Fetches multiple ranges from a spreadsheet at once.
+        """
+        result = self.service.spreadsheets().values().batchGet(
+            spreadsheetId=spreadsheet_id, ranges=ranges
+        ).execute()
+        return result.get('valueRanges', [])
