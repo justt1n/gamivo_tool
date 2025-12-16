@@ -173,19 +173,26 @@ class PriceProcessor:
             should_update = False
             log_msg_if_skipped = ""
 
-            if payload.get_mode == 1:
+            if payload.get_mode == 1 or my_current_price > final_price:
                 should_update = True
             else:
-                if my_current_price > final_price:
+                should_update = False
+                if min_price > my_current_price:
                     should_update = True
+                    final_price = min_price
+                    log_msg_if_skipped = "\n".join([
+                        f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Giá thấp hơn giá min, cập nhật lên min_price",
+                        f"Giá hiện tại: {my_current_price:.2f} | Giá mục tiêu: {competitor_price:.2f}",
+                        f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}",
+                        *log_lines_sellers
+                    ])
                 else:
-                    log_lines = [
+                    log_msg_if_skipped = "\n".join([
                         f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Không cập nhật",
                         f"Giá hiện tại: {my_current_price:.2f} | Giá mục tiêu: {competitor_price:.2f}",
-                        f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}"
-                    ]
-                    log_lines.extend(log_lines_sellers)
-                    log_msg_if_skipped = "\n".join(log_lines)
+                        f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}",
+                        *log_lines_sellers
+                    ])
 
             # --- PHASE 3: ACTION ---
             if should_update:
