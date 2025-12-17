@@ -2,6 +2,7 @@ import json
 import os
 
 import numpy as np
+import pandas
 from dotenv import load_dotenv
 
 from logic.get_offer_list import get_product_list
@@ -30,8 +31,14 @@ def get_sheet_data(service, sheet_id, range_name):
 def batch_update_csv_to_sheet(service, spreadsheet_id, sheet_name, csv_file_path):
     """Batch update a Google Sheet with data from a CSV file."""
     # Read the CSV file into a DataFrame
-    df = pd.read_csv(csv_file_path)
-
+    try:
+        df = pd.read_csv(csv_file_path)
+    except FileNotFoundError:
+        print(f"Error: The file {csv_file_path} was not found.")
+        return
+    except pandas.errors.EmptyDataError:
+        print(f"Error: The file {csv_file_path} is empty.")
+        return
     # Replace NaN values with an empty string
     df = df.replace(np.nan, '', regex=True)
 
