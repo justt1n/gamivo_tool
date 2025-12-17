@@ -2,4 +2,4 @@
 git stash save
 git pull
 pip install -r requirements.txt
-./update_offers.py
+python update_offers.py
