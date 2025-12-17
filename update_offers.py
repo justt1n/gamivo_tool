@@ -84,7 +84,7 @@ def update_offers():
     batch_update_csv_to_sheet(service, os.getenv('OFFERS_SHEET_ID'), os.getenv('OFFERS_SHEET_NAME'),
                               'storage/product_offers.csv')
 
-update_offers()
+# update_offers()
 
 if __name__ == "__main__":
     update_offers()
