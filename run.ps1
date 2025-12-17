@@ -1,3 +1,3 @@
 .\venv\Scripts\Activate.ps1
-git pull
+# git pull
 python .\main.py
