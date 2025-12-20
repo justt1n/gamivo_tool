@@ -169,12 +169,24 @@ class GamivoClient:
         int, dict]:
         """
         Updates an existing offer with a new price and stock asynchronously with retry.
+        Handles mapping from 'wholesale_seller_price_tier_X' (GET response) to 'tier_X_seller_price' (PUT payload).
         """
+
+        tier_one = original_offer_data.get('wholesale_seller_price_tier_one')
+        if tier_one is None:
+            tier_one = original_offer_data.get('tier_one_seller_price', 0)
+
+        tier_two = original_offer_data.get('wholesale_seller_price_tier_two')
+        if tier_two is None:
+            tier_two = original_offer_data.get('tier_two_seller_price', 0)
+
         payload_data = {
             "wholesale_mode": original_offer_data.get('wholesale_mode', 0) or 0,
             "seller_price": new_price,
-            "tier_one_seller_price": original_offer_data.get('tier_one_seller_price', 0) or 0,
-            "tier_two_seller_price": original_offer_data.get('tier_two_seller_price', 0) or 0,
+
+            "tier_one_seller_price": float(tier_one) if tier_one else 0,
+            "tier_two_seller_price": float(tier_two) if tier_two else 0,
+
             "keys": stock,
             "is_preorder": original_offer_data.get('is_preorder', False)
         }
@@ -188,9 +200,6 @@ class GamivoClient:
         endpoint = f"/offers/{offer_id}"
         json_payload = validated_payload.model_dump(exclude_none=True)
 
-        # --- ĐÃ XÓA DÒNG GỌI _make_request BỊ LỖI ---
-
-        # --- Phiên bản update_offer TỰ TÍCH HỢP RETRY ---
         @RETRY_DECORATOR
         async def _internal_update():
             response = await self._http_client.put(endpoint, json=json_payload)
@@ -203,7 +212,6 @@ class GamivoClient:
             return response.status_code, response.json()
 
         try:
-            # Chỉ gọi _internal_update MỘT LẦN
             return await _internal_update()
         except httpx.HTTPStatusError as e:
             error_message = e.response.json().get("message", e.response.text)
