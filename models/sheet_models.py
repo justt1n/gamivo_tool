@@ -37,6 +37,8 @@ class Payload(BaseModel):
     max_price_location: SheetLocation
     stock_location: SheetLocation
     blacklist_location: SheetLocation
+    wholesale1: Optional[float] = Field(None, alias='20', ge=0) #V
+    wholesale2: Optional[float] = Field(None, alias='21', ge=0) #W
     mode: Optional[str] = Field(None, alias='27') #AB
 
     # Fields not from the sheet, but useful for context

@@ -1,6 +1,4 @@
-import asyncio
 import logging
-import random
 import ssl
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -165,20 +163,28 @@ class GamivoClient:
         data = await self._make_request('GET', endpoint, params=params)
         return CalculatedPrice(**data)
 
-    async def update_offer(self, offer_id: int, original_offer_data: dict, new_price: float, stock: int) -> Tuple[
-        int, dict]:
+    async def update_offer(self,
+                           offer_id: int,
+                           original_offer_data: dict,
+                           new_price: float,
+                           stock: int,
+                           wholesale1: Optional[float] = None,
+                           wholesale2: Optional[float] = None
+                           ) -> Tuple[int, dict]:
         """
         Updates an existing offer with a new price and stock asynchronously with retry.
         Handles mapping from 'wholesale_seller_price_tier_X' (GET response) to 'tier_X_seller_price' (PUT payload).
         """
 
-        tier_one = original_offer_data.get('wholesale_seller_price_tier_one')
-        if tier_one is None:
-            tier_one = original_offer_data.get('tier_one_seller_price', 0)
-
-        tier_two = original_offer_data.get('wholesale_seller_price_tier_two')
-        if tier_two is None:
-            tier_two = original_offer_data.get('tier_two_seller_price', 0)
+        # tier_one = original_offer_data.get('wholesale_seller_price_tier_one')
+        # if tier_one is None:
+        #     tier_one = original_offer_data.get('tier_one_seller_price', 0)
+        #
+        # tier_two = original_offer_data.get('wholesale_seller_price_tier_two')
+        # if tier_two is None:
+        #     tier_two = original_offer_data.get('tier_two_seller_price', 0)
+        tier_one = wholesale1
+        tier_two = wholesale2
 
         payload_data = {
             "wholesale_mode": original_offer_data.get('wholesale_mode', 0) or 0,

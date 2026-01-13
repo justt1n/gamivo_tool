@@ -18,6 +18,18 @@ from models.sheet_models import Payload  # Đảm bảo bạn import Payload t�
 from utils.config import Config
 
 
+def calculate_wholesale(final_price: float, formula: Optional[str]) -> float:
+    if not formula:
+        return 0.0
+    try:
+        # Replace 'X' with the final_price in the formula
+        expression = formula.replace('X', str(final_price))
+        return eval(expression)  # Evaluate the formula
+    except Exception as e:
+        logging.error(f"Invalid wholesale formula '{formula}': {e}")
+        return 0.0
+
+
 class PriceProcessor:
     """
     Orchestrates the entire process of fetching data, processing prices,
@@ -66,7 +78,8 @@ class PriceProcessor:
             logging.error(f"Lý do: Ô này có thể bị rỗng trên Google Sheet hoặc cấu hình sai.")
             raise Exception(f"Missing config value for {payload.product_name} (key: {e})")
         except (ValueError, IndexError, TypeError) as e:
-            logging.error(f"Failed to parse config values for {payload.product_name} (keys: {min_key}, {max_key}, {stock_key}): {e}")
+            logging.error(
+                f"Failed to parse config values for {payload.product_name} (keys: {min_key}, {max_key}, {stock_key}): {e}")
             raise Exception(f"Invalid config format for {payload.product_name}")
 
     # --- HÀM HELPER MỚI ---
@@ -79,7 +92,7 @@ class PriceProcessor:
 
         try:
             logging.info(f"Executing batch_get for {sheet_id} with {len(ranges)} ranges.")
-            async with self.gsheet_lock: # Bảo vệ Google client
+            async with self.gsheet_lock:  # Bảo vệ Google client
                 value_ranges = await asyncio.to_thread(
                     self.gsheet_client.batch_get,
                     sheet_id,
@@ -88,7 +101,7 @@ class PriceProcessor:
             return (sheet_id, value_ranges)
         except Exception as e:
             logging.error(f"Failed batch_get for sheet_id {sheet_id}: {e}")
-            return (sheet_id, []) # Trả về rỗng để gather không bị vỡ
+            return (sheet_id, [])  # Trả về rỗng để gather không bị vỡ
 
     # --- CÁC HÀM LOGIC CỐT LÕI (Không thay đổi) ---
 
@@ -196,7 +209,10 @@ class PriceProcessor:
 
             # --- PHASE 3: ACTION ---
             if should_update:
-                status, response = await self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock)
+                whole_sale1 = calculate_wholesale(final_price, payload.wholesale1)
+                whole_sale2 = calculate_wholesale(final_price, payload.wholesale2)
+                status, response = await self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock,
+                                                                         whole_sale1, whole_sale2)
 
                 if status == 200:
                     log_lines = [
@@ -220,7 +236,7 @@ class PriceProcessor:
         except (GamivoAPIError, Exception) as e:
             logging.error(f"Error processing '{payload.product_name}' on row {payload.sheet_row_num}: {e}")
             self._add_log(payload.sheet_row_num, f"Error: {e}", 'E')
-            raise # Ném lỗi ra ngoài để asyncio.gather(return_exceptions=True) bắt
+            raise  # Ném lỗi ra ngoài để asyncio.gather(return_exceptions=True) bắt
         finally:
             self._add_log(payload.sheet_row_num, datetime.now().strftime('%d/%m/%Y %H:%M:%S'), 'D')
 
@@ -286,7 +302,8 @@ class PriceProcessor:
                         self.gsheet_client.get_data, self.config.main_sheet_id, range_to_fetch
                     )
 
-                payloads = [Payload.from_row(row_data, self.config.start_row + i) for i, row_data in enumerate(sheet_data)]
+                payloads = [Payload.from_row(row_data, self.config.start_row + i) for i, row_data in
+                            enumerate(sheet_data)]
                 valid_payloads = [p for p in payloads if p and p.is_enabled]
 
                 if not valid_payloads:
@@ -305,7 +322,7 @@ class PriceProcessor:
                     locs = [p.min_price_location, p.max_price_location, p.stock_location]
                     for loc in locs:
                         if loc.sheet_id and loc.sheet_name and loc.cell:
-                             ranges_by_spreadsheet[loc.sheet_id].add(f"{loc.sheet_name}!{loc.cell}")
+                            ranges_by_spreadsheet[loc.sheet_id].add(f"{loc.sheet_name}!{loc.cell}")
 
                 # 3. GỌI BATCH GET CHO TỪNG SPREADSHEET (chạy song song)
                 logging.info(f"Fetching configs from {len(ranges_by_spreadsheet)} unique spreadsheets.")
@@ -322,7 +339,7 @@ class PriceProcessor:
                 config_cache = {}
                 for (sheet_id, value_ranges) in all_results:
                     for vr in value_ranges:
-                        range_name_from_google = vr.get('range') # Ví dụ: 'Data'!C2 hoặc Data!C2
+                        range_name_from_google = vr.get('range')  # Ví dụ: 'Data'!C2 hoặc Data!C2
                         values = vr.get('values')
 
                         if not (range_name_from_google and values):
