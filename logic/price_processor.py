@@ -70,7 +70,7 @@ class PriceProcessor:
             max_price_raw = config_cache[max_key][0][0].replace(',', '').strip()
             stock_raw = config_cache[stock_key][0][0].replace(',', '').strip()
 
-            return float(min_price_raw), float(max_price_raw), int(stock_raw)
+            return float(min_price_raw), float(max_price_raw), int(float(stock_raw))
 
         except KeyError as e:
             # Log lỗi rõ ràng để biết key nào bị thiếu
