@@ -66,9 +66,9 @@ class PriceProcessor:
 
         try:
             # Lấy giá trị từ cache.
-            min_price_raw = config_cache[min_key][0][0]
-            max_price_raw = config_cache[max_key][0][0]
-            stock_raw = config_cache[stock_key][0][0]
+            min_price_raw = config_cache[min_key][0][0].replace(',', '').strip()
+            max_price_raw = config_cache[max_key][0][0].replace(',', '').strip()
+            stock_raw = config_cache[stock_key][0][0].replace(',', '').strip()
 
             return float(min_price_raw), float(max_price_raw), int(stock_raw)
 
