@@ -68,8 +68,10 @@ class PriceProcessor:
             # Lấy giá trị từ cache.
             min_price_raw = config_cache[min_key][0][0].replace(',', '').strip()
             max_price_raw = config_cache[max_key][0][0].replace(',', '').strip()
-            stock_raw = config_cache[stock_key][0][0].replace(',', '').strip()
-
+            try:
+                stock_raw = config_cache[stock_key][0][0].replace(',', '').strip()
+            except (KeyError, IndexError):
+                stock_raw = '-1'
             return float(min_price_raw), float(max_price_raw), int(float(stock_raw))
 
         except KeyError as e:
@@ -150,7 +152,9 @@ class PriceProcessor:
             my_offer_data = await self.gamivo_client.retrieve_my_offer(offer_id)
             my_seller_name = my_offer_data.get('seller_name')
             my_current_price = my_offer_data.get('seller_price', float('inf'))
-
+            my_current_stock = my_offer_data.get('stock_available', 999)
+            if stock == 0 or stock == -1:
+                stock = my_current_stock
             offer_analysis = await self._analyze_offers(payload.product_compare_id, my_seller_name)
             valid_competitor = offer_analysis["valid_competitor"]
 
