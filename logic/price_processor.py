@@ -49,7 +49,7 @@ class PriceProcessor:
 
     # --- HÀM HELPER (ĐÃ SỬA) ---
 
-    def _get_price_boundaries(self, payload: Payload, config_cache: dict) -> Tuple[float, float, int]:
+    def _get_price_boundaries(self, payload: Payload, config_cache: dict) -> Tuple[float, float, Optional[int]]:
         """
         (ĐỒNG BỘ) Lấy 3 giá trị từ cache đã được đọc trước.
         (ĐÃ SỬA) Sử dụng key chuẩn hóa (không có dấu ').
@@ -68,11 +68,32 @@ class PriceProcessor:
             # Lấy giá trị từ cache.
             min_price_raw = config_cache[min_key][0][0].replace(',', '').strip()
             max_price_raw = config_cache[max_key][0][0].replace(',', '').strip()
-            try:
-                stock_raw = config_cache[stock_key][0][0].replace(',', '').strip()
-            except (KeyError, IndexError):
-                stock_raw = '-1'
-            return float(min_price_raw), float(max_price_raw), int(float(stock_raw))
+            stock = None
+            if all([stock_loc.sheet_id, stock_loc.sheet_name, stock_loc.cell]):
+                try:
+                    stock_raw = config_cache[stock_key][0][0].replace(',', '').strip()
+                    if stock_raw == '':
+                        logging.warning(
+                            f"Stock cell is blank for {payload.product_name} ({stock_key}). "
+                            "Will send keys=0 to reset stock."
+                        )
+                        stock = 0
+                    else:
+                        stock = int(float(stock_raw))
+                except (KeyError, IndexError):
+                    logging.warning(
+                        f"Stock cell could not be read for {payload.product_name} ({stock_key}). "
+                        "Will send keys=0 to reset stock."
+                    )
+                    stock = 0
+                except (ValueError, TypeError) as e:
+                    logging.warning(
+                        f"Failed to parse stock for {payload.product_name} ({stock_key}): {e}. "
+                        "Will send keys=0 to reset stock."
+                    )
+                    stock = 0
+
+            return float(min_price_raw), float(max_price_raw), stock
 
         except KeyError as e:
             # Log lỗi rõ ràng để biết key nào bị thiếu
@@ -152,9 +173,6 @@ class PriceProcessor:
             my_offer_data = await self.gamivo_client.retrieve_my_offer(offer_id)
             my_seller_name = my_offer_data.get('seller_name')
             my_current_price = my_offer_data.get('seller_price', float('inf'))
-            my_current_stock = my_offer_data.get('stock_available', 999)
-            if stock == 0 or stock == -1:
-                stock = my_current_stock
             offer_analysis = await self._analyze_offers(payload.product_compare_id, my_seller_name)
             valid_competitor = offer_analysis["valid_competitor"]
 
@@ -215,14 +233,39 @@ class PriceProcessor:
             if should_update:
                 whole_sale1 = calculate_wholesale(final_price, payload.wholesale1)
                 whole_sale2 = calculate_wholesale(final_price, payload.wholesale2)
-                status, response = await self.gamivo_client.update_offer(offer_id, my_offer_data, final_price, stock,
-                                                                         whole_sale1, whole_sale2)
+                try:
+                    status, response = await self.gamivo_client.update_offer(
+                        offer_id,
+                        my_offer_data,
+                        final_price,
+                        stock,
+                        whole_sale1,
+                        whole_sale2
+                    )
+                except GamivoAPIError as e:
+                    if e.status_code == 403 and "Not published products cannot be edited through API" in str(e):
+                        skip_msg = "\n".join([
+                            f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Bo qua offer chua publish, API khong cho phep edit",
+                            f"Gia hien tai: {my_current_price:.2f} | Gia muc tieu: {competitor_price:.2f}",
+                            f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}",
+                            *log_lines_sellers
+                        ])
+                        logging.warning(
+                            f"Skipping unpublished offer {offer_id} for row {payload.sheet_row_num}: {e}"
+                        )
+                        self._add_log(payload.sheet_row_num, skip_msg, 'C')
+                        return
+                    raise
 
                 if status == 200:
                     log_lines = [
                         f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}: Giá đã cập nhật thành công; Price = {final_price:.2f}",
                         f"Pricemin = {min_price}, Pricemax = {max_price}, GiaSosanh = {competitor_price:.2f} - Seller: {competitor_seller}"
                     ]
+                    if stock is None:
+                        log_lines.append("Stock: khong co cau hinh o stock, bo qua field 'keys' trong payload.")
+                    elif stock == 0:
+                        log_lines.append("Stock: doc/parse o stock loi hoac rong, da gui keys=0 de reset.")
                     log_lines.extend(log_lines_sellers)
                     log_msg = "\n".join(log_lines)
 

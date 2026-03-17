@@ -167,7 +167,7 @@ class GamivoClient:
                            offer_id: int,
                            original_offer_data: dict,
                            new_price: float,
-                           stock: int,
+                           stock: Optional[int],
                            wholesale1: Optional[float] = None,
                            wholesale2: Optional[float] = None
                            ) -> Tuple[int, dict]:
@@ -192,10 +192,10 @@ class GamivoClient:
 
             "tier_one_seller_price": float(tier_one) if tier_one else 0,
             "tier_two_seller_price": float(tier_two) if tier_two else 0,
-
-            "keys": stock,
             "is_preorder": original_offer_data.get('is_preorder', False)
         }
+        if stock is not None:
+            payload_data["keys"] = stock
 
         try:
             validated_payload = UpdateOfferPayload(**payload_data)

@@ -20,17 +20,17 @@ class Payload(BaseModel):
     sheet_row_num: int = Field(..., description="The actual row number in the Google Sheet for logging.")
 
     # Metadata and Control
-    is_enabled_str: str = Field(..., alias='0')
-    product_name: str = Field(..., alias='1')
-    note: Optional[str] = Field(None, alias='2')
-    last_update: Optional[str] = Field(None, alias='3')
-    product_link: Optional[str] = Field(None, alias='4')
+    is_enabled_str: str = Field(..., alias='0') #A
+    product_name: str = Field(..., alias='1') #B
+    note: Optional[str] = Field(None, alias='2') #C
+    last_update: Optional[str] = Field(None, alias='3') #D
+    product_link: Optional[str] = Field(None, alias='4') #E
 
     # Core Logic Parameters
-    product_compare_id: int = Field(..., alias='5')
-    min_change_price: float = Field(0.0, alias='6', ge=0)
-    max_change_price: float = Field(0.0, alias='7', ge=0)
-    rounding_precision: int = Field(2, alias='8', ge=0)
+    product_compare_id: int = Field(..., alias='5') #F
+    min_change_price: float = Field(0.0, alias='6', ge=0) #H
+    max_change_price: float = Field(0.0, alias='7', ge=0) #G
+    rounding_precision: int = Field(2, alias='8', ge=0) #I
 
     # Sheet Locations for Price/Stock
     min_price_location: SheetLocation
